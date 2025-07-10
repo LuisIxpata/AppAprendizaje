@@ -1,12 +1,8 @@
 import { Text, StyleSheet, View, BackHandler, TouchableOpacity, Image, ActivityIndicator, Modal, Pressable } from 'react-native';
 import { useFocusEffect, CommonActions } from '@react-navigation/native';
 import React, { useLayoutEffect, useCallback, useState, useEffect } from 'react';
-import appFirebase from '../credenciales';
-import { getAuth, signOut } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-
-const auth = getAuth(appFirebase);
-const db = getFirestore(appFirebase);
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../config'; // << crea este archivo si no existe
 
 export default function Home({ navigation }) {
   const [usuario, setUsuario] = useState(null);
@@ -14,18 +10,26 @@ export default function Home({ navigation }) {
   const [menuVisible, setMenuVisible] = useState(false);
 
   useEffect(() => {
-    const fetchUsuario = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const docRef = doc(db, 'usuarios', user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setUsuario(docSnap.data());
-        }
+    (async () => {
+      try {
+        const token  = await AsyncStorage.getItem('token');
+        const userId = await AsyncStorage.getItem('userId');
+        if (!token || !userId) throw new Error('No autorizado');
+
+        const res = await fetch(`${API_BASE_URL}/obtener_usuarios/${userId}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        if (!res.ok) throw new Error('Error al obtener usuario');
+        const data = await res.json();
+        setUsuario(data);
+      } catch (err) {
+        console.error(err.message);
+        navigation.navigate('Login');
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    };
-    fetchUsuario();
+    })();
   }, []);
 
   useFocusEffect(
@@ -40,7 +44,9 @@ export default function Home({ navigation }) {
 
   const handleLogout = useCallback(async () => {
     try {
-      await signOut(auth);
+      await AsyncStorage.removeItem('token');
+      await AsyncStorage.removeItem('userId');
+
       navigation.dispatch(
         CommonActions.reset({
           index: 0,
@@ -53,7 +59,7 @@ export default function Home({ navigation }) {
   }, [navigation]);
 
   const handleEditProfile = () => {
-    navigation.navigate('EditarPerfil'); 
+    navigation.navigate('EditarPerfil');
   };
 
   const toggleMenu = () => {
@@ -110,8 +116,8 @@ export default function Home({ navigation }) {
       </View>
 
       <View style={styles.profileSection}>
-        {usuario?.photoURL && (
-          <Image source={{ uri: usuario.photoURL }} style={styles.image} />
+        {usuario?.photo_url && (
+          <Image source={{ uri: usuario.photo_url }} style={styles.image} />
         )}
         <View style={styles.infoContainer}>
           <Text style={styles.nombre}>{usuario?.nombre}</Text>
@@ -131,126 +137,4 @@ export default function Home({ navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  menuWrapper: {
-    width: '110%',
-    alignItems: 'flex-start',
-    marginTop: -15, 
-  },
-  menuButtonContainer: {
-    backgroundColor: '#0066cc',
-    padding: 15,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 4,
-  },
-  menuIcon: {
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  title: {
-    fontSize: 22,
-    marginTop: 30,
-    textAlign: 'center',
-    color: '#333',
-  },
-  profileSection: {
-    alignItems: 'center',
-    marginBottom: 20,
-    backgroundColor: '#f5f5f5',
-    padding: 20,
-    borderRadius: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 3,
-    elevation: 5,
-    width: '100%',
-  },
-  infoContainer: {
-    marginTop: 10,
-    alignItems: 'center',
-  },
-  info: {
-    fontSize: 16,
-    color: '#555',
-  },
-  nombre: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    textTransform: 'capitalize',
-  },
-  rol: {
-    fontSize: 18,
-    color: '#666',
-    marginBottom: 15,
-    textTransform: 'capitalize',
-  },
-  logoutButton: {
-    marginRight: 1,
-    backgroundColor: '#ff4444',
-    paddingVertical: 7,
-    paddingHorizontal: 15,
-    borderRadius: 4,
-    elevation: 2,
-    fontSize: 16,
-    color: '#fff',
-  },
-  editButton: {
-    marginTop: 20,
-    backgroundColor: '#0066cc',
-    paddingVertical: 12,
-    paddingHorizontal: 30,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  editText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  image: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: 10,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
-  },
-  menuModal: {
-    backgroundColor: '#fff',
-    padding: 20,
-    marginTop: 60,
-    marginLeft: 10,
-    borderRadius: 10,
-    elevation: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  menuItem: {
-    fontSize: 16,
-    paddingVertical: 10,
-    color: '#333',
-  },
-});
+// Los estilos los puedes dejar igual (omitidos aquí para ahorrar espacio)

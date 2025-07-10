@@ -1,141 +1,153 @@
-import React, { useEffect, useState, useLayoutEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, BackHandler } from 'react-native';
+// screens/MisArchivos.js
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View, Text, StyleSheet, FlatList, TouchableOpacity, BackHandler,
+  ActivityIndicator, Linking
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import appFirebase from '../credenciales';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../config';
 
-const archivosEjemplo = [
-    { id: '1', nombre: 'Guía de estudio - Matemática', tipo: 'pdf' },
-    { id: '2', nombre: 'Presentación Historia', tipo: 'ppt' },
-    { id: '3', nombre: 'Resumen Filosofía', tipo: 'doc' },
-    { id: '4', nombre: 'Tarea Programación', tipo: 'zip' },
-  ];
-  
-  export default function MisArchivos() {
-    const navigation = useNavigation();
+export default function MisArchivos() {
+  const navigation = useNavigation();
+  const [archivos, setArchivos]   = useState([]);
+  const [loading, setLoading]     = useState(true);
 
-    useFocusEffect(
-          useCallback(() => {
-            const onBackPress = () => true;
-            BackHandler.addEventListener('hardwareBackPress', onBackPress);
-            return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
-          }, [])
-        ); 
+  /* -------------------------------------------------- */
+  /* 1. Cargar archivos del backend                     */
+  /* -------------------------------------------------- */
+  useEffect(() => {
+    (async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        if (!token) throw new Error('Sesion expirada');
 
-    const renderItem = ({ item }) => (
-      <View style={styles.itemContainer}>
-        <Ionicons name="document-text-outline" size={24} color="#6a1b9a" style={styles.icon} />
-        <View style={styles.textContainer}>
-          <Text style={styles.fileName}>{item.nombre}</Text>
-          <Text style={styles.fileType}>{item.tipo.toUpperCase()}</Text>
-        </View>
-        <TouchableOpacity style={styles.viewButton}>
-          <Text style={styles.viewButtonText}>Ver</Text>
-        </TouchableOpacity>
+        const res = await fetch(`${API_BASE_URL}/archivos`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
 
-        
-       </View>
+        if (res.ok) {
+          const data = await res.json(); // [{ id, titulo, tipo, url, ... }]
+          const adaptados = data.map(a => ({
+            id:    String(a.id),
+            nombre:a.titulo,
+            tipo:  a.tipo,
+            url:   a.url
+          }));
+          setArchivos(adaptados);
+        } else {
+          setArchivos([]);
+        }
+      } catch (err) {
+        console.error(err);
+        setArchivos([]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
-     
+  /* -------------------------------------------------- */
+  /* 2. Bloqueo botón BACK                              */
+  /* -------------------------------------------------- */
+  useFocusEffect(
+    useCallback(() => {
+      const onBack = () => true;
+      BackHandler.addEventListener('hardwareBackPress', onBack);
+      return () => BackHandler.removeEventListener('hardwareBackPress', onBack);
+    }, [])
+  );
 
-    );
-  
+  /* -------------------------------------------------- */
+  /* 3. Render de cada archivo                          */
+  /* -------------------------------------------------- */
+  const openFile = (url) => {
+    if (url) Linking.openURL(url);
+  };
+
+  const renderItem = ({ item }) => (
+    <View style={styles.itemContainer}>
+      <Ionicons name="document-text-outline" size={24} color="#6a1b9a" style={styles.icon} />
+      <View style={styles.textContainer}>
+        <Text style={styles.fileName}>{item.nombre}</Text>
+        <Text style={styles.fileType}>{(item.tipo || '').toUpperCase()}</Text>
+      </View>
+      <TouchableOpacity style={styles.viewButton} onPress={() => openFile(item.url)}>
+        <Text style={styles.viewButtonText}>Ver</Text>
+      </TouchableOpacity>
+    </View>
+  );
+
+  /* -------------------------------------------------- */
+  /* 4. UI                                              */
+  /* -------------------------------------------------- */
+  if (loading) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Mis Archivos</Text>
+      <View style={[styles.container, { justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Mis Archivos</Text>
+
+      {archivos.length === 0 ? (
+        <View style={styles.noResultadosContainer}>
+          <Text style={styles.noResultadosText}>📁 Sin archivos disponibles</Text>
+        </View>
+      ) : (
         <FlatList
-          data={archivosEjemplo}
+          data={archivos}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           contentContainerStyle={{ paddingBottom: 20 }}
         />
-        <View style={styles.footerMenu}>
-                <TouchableOpacity onPress={() => navigation.navigate('HomeEstudiante')} style={styles.footerItem}>
-                  <Ionicons name="home" size={24} color="gray" />
-                  <Text style={styles.footerText}>Inicio</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate('MisArchivos')} style={styles.footerItem}>
-                  <Ionicons name="folder" size={24} color="#800080" />
-                  <Text style={styles.footerText}>Mis Archivos</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate('Notificaciones')} style={styles.footerItem}>
-                  <Ionicons name="notifications" size={24} color="#666" />
-                  <Text style={styles.footerText}>Notificaciones</Text>
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => navigation.navigate('Perfil')} style={styles.footerItem}>
-                  <Ionicons name="person" size={24} color="gray" />
-                  <Text style={styles.footerText}>Perfil</Text>
-                </TouchableOpacity>
+      )}
 
-        </View>
+      {/* Footer menu */}
+      <View style={styles.footerMenu}>
+        {[
+          { icon: 'home', label: 'Inicio', screen: 'HomeEstudiante' },
+          { icon: 'folder', label: 'Mis Archivos', screen: 'MisArchivos', active: true },
+          { icon: 'notifications', label: 'Notificaciones', screen: 'Notificaciones' },
+          { icon: 'person', label: 'Perfil', screen: 'Perfil' }
+        ].map((f, i) => (
+          <TouchableOpacity key={i} style={styles.footerItem} onPress={() => navigation.navigate(f.screen)}>
+            <Ionicons name={f.icon} size={24} color={f.active ? '#800080' : '#666'} />
+            <Text style={styles.footerText}>{f.label}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
-    );
-  }
-  
-  const styles = StyleSheet.create({
-    container: {
-      flex: 1,
-      backgroundColor: '#f7f5fb',
-      paddingTop: 40,
-      paddingHorizontal: 20,
-    },
-    title: {
-      fontSize: 22,
-      fontWeight: 'bold',
-      marginBottom: 20,
-      alignSelf: 'center',
-    },
-    itemContainer: {
-      flexDirection: 'row',
-      backgroundColor: '#fff',
-      borderRadius: 10,
-      padding: 15,
-      marginBottom: 12,
-      alignItems: 'center',
-      elevation: 2,
-    },
-    icon: {
-      marginRight: 10,
-    },
-    textContainer: {
-      flex: 1,
-    },
-    fileName: {
-      fontSize: 16,
-      fontWeight: 'bold',
-    },
-    fileType: {
-      fontSize: 12,
-      color: '#888',
-    },
-    viewButton: {
-      backgroundColor: '#6a1b9a',
-      paddingVertical: 6,
-      paddingHorizontal: 12,
-      borderRadius: 6,
-    },
-    footerMenu: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        paddingVertical: 10,
-        borderTopWidth: 1,
-        borderColor: '#ddd',
-        backgroundColor: '#fff',
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-      },
-    footerItems: {
-        alignItems: 'center',
-    },
-    viewButtonText: {
-      color: '#fff',
-      fontSize: 14,
-      fontWeight: 'bold',
-    },
-  });
-  
+    </View>
+  );
+}
+
+
+const styles = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#f7f5fb', paddingTop: 40, paddingHorizontal: 20 },
+  title: { fontSize: 22, fontWeight: 'bold', marginBottom: 20, alignSelf: 'center' },
+  itemContainer: {
+    flexDirection: 'row', backgroundColor: '#fff', borderRadius: 10,
+    padding: 15, marginBottom: 12, alignItems: 'center', elevation: 2,
+  },
+  icon: { marginRight: 10 },
+  textContainer: { flex: 1 },
+  fileName: { fontSize: 16, fontWeight: 'bold' },
+  fileType: { fontSize: 12, color: '#888' },
+  viewButton: { backgroundColor: '#6a1b9a', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6 },
+  viewButtonText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
+  /* footer */
+  footerMenu: {
+    flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center',
+    paddingVertical: 10, borderTopWidth: 1, borderColor: '#ddd',
+    backgroundColor: '#fff', position: 'absolute', bottom: 0, left: 0, right: 0,
+  },
+  footerItem: { alignItems: 'center' },
+  footerText: { fontSize: 12, marginTop: 4, color: '#333' },
+  /* no resultados */
+  noResultadosContainer: { marginTop: 40, alignItems: 'center' },
+  noResultadosText: { fontSize: 16, color: '#888', fontStyle: 'italic' },
+});

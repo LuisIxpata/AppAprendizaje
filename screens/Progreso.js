@@ -1,45 +1,51 @@
+// screens/Progreso.js
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../config';
 
-const Progreso = () => {
-  const [progreso, setProgreso] = useState(null);
+export default function Progreso() {
+  const [progreso, setProgreso] = useState(null);   // número (0-100) o null
+  const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
-    const fetchProgreso = async () => {
-      const auth = getAuth();
-      const db = getFirestore();
-      const user = auth.currentUser;
+    (async () => {
+      try {
+        const token  = await AsyncStorage.getItem('token');
+        const userId = await AsyncStorage.getItem('userId');
+        if (!token || !userId) return;
 
-      if (user) {
-        const docRef = doc(db, "usuarios", user.uid);
-        const docSnap = await getDoc(docRef);
+        // ──➤ ajusta módulo_id=1 si POO en tu BD tiene otro id
+        const res = await fetch(`${API_BASE_URL}/progreso?usuario=${userId}&modulo=1`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
 
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          setProgreso(data.progresoModuloPOO);
+        if (res.ok) {
+          const data = await res.json();        // [{ porcentaje, ... }] o []
+          if (data.length) setProgreso(data[0].porcentaje);
         }
+      } catch (err) {
+        console.error('Error al obtener progreso:', err);
+      } finally {
+        setCargando(false);
       }
-    };
-
-    fetchProgreso();
+    })();
   }, []);
 
   return (
     <View style={styles.container}>
       <Text style={styles.titulo}>📈 Progreso de Módulo POO</Text>
-        {typeof progreso === 'number' ? (
-      <Text style={styles.valor}>✅ Has completado {progreso.toFixed(1)}%</Text>
+
+      {cargando ? (
+        <ActivityIndicator size="large" color="#4a148c" />
+      ) : typeof progreso === 'number' ? (
+        <Text style={styles.valor}>✅ Has completado {progreso.toFixed(1)}%</Text>
       ) : (
-      <Text style={styles.valor}>No hay progreso registrado aún</Text>
+        <Text style={styles.valor}>No hay progreso registrado aún</Text>
       )}
-       : (
-        <Text>Cargando progreso...</Text>
-      )
     </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
   container: {
@@ -61,5 +67,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-
-export default Progreso;

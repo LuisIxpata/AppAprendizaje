@@ -1,18 +1,16 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Modal } from 'react-native';
+// screens/ModuloPOO.js
+import React, { useState, useEffect } from 'react';
+import {
+  View, Text, StyleSheet, TouchableOpacity, ScrollView, Image,
+  Modal, ActivityIndicator
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ImageViewing from 'react-native-image-viewing';
-import { Image as RNImage } from 'react-native-animatable';
-import { Image } from 'react-native'; 
 import { LinearGradient } from 'expo-linear-gradient';
-import { getFirestore, doc, updateDoc, setDoc } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
-
-const db = getFirestore();
-const auth = getAuth();
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../config';
 
 const preguntasPOO = [
-  
   {
     id: 1,
     pregunta: '¿Qué es una clase en POO?',
@@ -76,205 +74,206 @@ const preguntasPOO = [
 ];
 
 export default function ModuloPOO({ navigation }) {
+  const [preguntas, setPreguntas] = useState([]);
   const [indice, setIndice] = useState(0);
   const [puntos, setPuntos] = useState(0);
-  const [respuestaSeleccionada, setRespuestaSeleccionada] = useState(null);
+  const [respuestaSeleccionada, setRespSel] = useState(null);
   const [terminado, setTerminado] = useState(false);
   const [empezar, setEmpezar] = useState(false);
-  const preguntaActual = preguntasPOO[indice];
+  const [imagenSeleccionada, setImagen] = useState(null);
+  const [visible, setVisible] = useState(false);
 
-  const [imagenSeleccionada, setImagenSeleccionada] = useState(null);
-  const [visible, setIsVisible] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/preguntas?modulo=POO`);
+        if (res.ok) {
+          const data = await res.json();
+          const formateadas = data.map((p, idx) => ({
+            id: idx + 1,
+            pregunta: p.enunciado,
+            opciones: p.opciones,
+            respuestaCorrecta: p.respuesta_correcta,
+          }));
+          setPreguntas(formateadas);
+        } else {
+          setPreguntas(preguntasPOO);
+        }
+      } catch {
+        setPreguntas(preguntasPOO);
+      }
+    })();
+  }, []);
 
-  const abrirImagen = (requireImage) => {
-    const source = Image.resolveAssetSource(requireImage);
-    setImagenSeleccionada([{ uri: source.uri }]);
-    setIsVisible(true);
+  const preguntaActual = preguntas[indice];
+
+  const abrirImagen = (requireImg) => {
+    const src = Image.resolveAssetSource(requireImg);
+    setImagen([{ uri: src.uri }]);
+    setVisible(true);
   };
-  
-  const verificarRespuesta = (opcion) => {
-    setRespuestaSeleccionada(opcion);
-    if (opcion === preguntaActual.respuestaCorrecta) {
-      setPuntos(puntos + 1);
-    }
-    setTimeout(() => {
-      if (indice + 1 < preguntasPOO.length) {
-        setIndice(indice + 1);
-        setRespuestaSeleccionada(null);
+
+  const verificarRespuesta = async (opcion) => {
+    setRespSel(opcion);
+    if (opcion === preguntaActual.respuestaCorrecta) setPuntos(p => p + 1);
+
+    setTimeout(async () => {
+      if (indice + 1 < preguntas.length) {
+        setIndice(i => i + 1);
+        setRespSel(null);
       } else {
         setTerminado(true);
-
-        const user = auth.currentUser;
-      if (user) {
-      const userRef = doc(db, "usuarios", user.uid);
-       setDoc(userRef, {
-      progresoModuloPOO: (puntos / preguntasPOO.length) * 100,
-      fechaUltimoIntentoPOO: new Date()
-      }, { merge: true });
-}
-
+        await guardarProgreso();
       }
-    }, 1000);
+    }, 800);
+  };
+
+  const guardarProgreso = async () => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const userId = await AsyncStorage.getItem('userId');
+      if (!token || !userId) return;
+
+      const porcentaje = Math.round((puntos / preguntas.length) * 100);
+
+      await fetch(`${API_BASE_URL}/progreso`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          usuario_id: userId,
+          modulo_id: 1,
+          porcentaje,
+        }),
+      });
+    } catch (err) {
+      console.warn('No se pudo guardar progreso:', err.message);
+    }
   };
 
   const reiniciar = () => {
     setIndice(0);
     setPuntos(0);
-    setRespuestaSeleccionada(null);
+    setRespSel(null);
     setTerminado(false);
     setEmpezar(false);
   };
-  
+
+  if (!preguntas.length) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center' }]}> 
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
-    <LinearGradient
-      colors={['#f3e5f5', '#ffffff']}
-      style={styles.gradient}
-    >
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>🧠 Módulo: Programación Orientada a Objetos</Text>
+    <LinearGradient colors={['#f3e5f5', '#ffffff']} style={styles.gradient}>
+      <ScrollView contentContainerStyle={styles.container}>
+        <Text style={styles.title}>🧠 Bienvenido al Módulo: Programación Orientada a Objetos</Text>
 
-      {!empezar ? (
-        <View>
-          <Text style={styles.explicacion}>Una clase en POO es una plantilla de objetos que permite estructurar el código para facilitar su reutilización y mantenimiento. Define propiedades y comportamientos comunes para sus objetos.</Text>
-          <Text style={styles.TextoEjemplo}> ✅ Aquí tienes un ejemplo visual de lo que es una Clase:{"\n"}</Text>
-          <TouchableOpacity onPress={() => abrirImagen(require('../assets/EjemploPOO.png'))}>
-            <Image source={require('../assets/EjemploPOO.png')} style={styles.imageicon}/>
-          </TouchableOpacity>
-
-          <ImageViewing
-            images={imagenSeleccionada || []}
-            imageIndex={0}
-            visible={visible}
-            onRequestClose={() => setIsVisible(false)}
-          />
-
-          
-
-          <Text style={styles.explicacion}>Una instancia es un objeto creado a partir de una clase. La palabra clave <Text style={styles.bold}>new</Text> se utiliza para instanciar o definir.</Text>
-          <Text style={styles.TextoEjemplo}> ✅ Aquí tienes un ejemplo visual de una instancia, en este caso la instancia Galleta:</Text>
-          <TouchableOpacity onPress={() => abrirImagen(require('../assets/EjemploInstancia.png'))}>
-          
-            <Image source={require('../assets/EjemploInstancia.png')} style={styles.imageicon}/>
-          
-          </TouchableOpacity>
-
-
-
-          <Text style={styles.explicacion}>Los objetos representan entidades del mundo real y son instancias concretas de clases, con sus propios valores y comportamientos.</Text>
-          <Text style={styles.TextoEjemplo}>✅ Aquí tienes un ejemplo visual de un obejto dentro de una clase:{"\n"}
-            {"\n"}
-            {"\n"}
-          </Text>
-          <TouchableOpacity onPress={() => abrirImagen(require('../assets/EjemploObjeto.jpg'))}>
-          
-            <Image source={require('../assets/EjemploObjeto.jpg')} style={styles.imageicon}/>
-          
-          </TouchableOpacity>
-          
-
-
-          <Text style={styles.explicacion}>Un método es una función definida dentro de una clase, que describe una acción que los objetos pueden ejecutar.</Text>
-          <Text style={styles.TextoEjemplo}>✅ Aquí tienes un ejemplo visual de que son lo metodos: </Text>
-          <TouchableOpacity onPress={() => abrirImagen(require('../assets/EjemploMetodo.png'))}>
+        {!empezar && !terminado && (
           <View>
-            <Image source={require('../assets/EjemploMetodo.png')} style={styles.imageiconGrande}/>
-          </View>
-          </TouchableOpacity>
-
-
-          <Text style={styles.explicacion}>La herencia permite a una clase adquirir atributos y métodos de otra. Es clave para reutilizar código.</Text>
-          <Text style={styles.TextoEjemplo}>✅ Aquí tienes un ejemplo visual de como funciona la Herencia: {"\n"}</Text>
-          <TouchableOpacity onPress={() => abrirImagen(require('../assets/EjemploHerencia.jpg'))}>
-          <View>
-            <Image source={require('../assets/EjemploHerencia.jpg')} style={styles.imageiconPequeno}/>
-          </View>
-          </TouchableOpacity>
-
-
-          <Text style={styles.explicacion}>Se utiliza <Text style={styles.bold}>extends</Text> para indicar que una clase hereda de otra.</Text>
-          <Text style={styles.TextoEjemplo}>✅ Aquí tienes un ejemplo en codigo de como se usa la palabra <Text style={styles.bold}>extends</Text></Text>
-          <TouchableOpacity onPress={() => abrirImagen(require('../assets/EjemploExtends.jpg'))}>
-          <View>
-            <Image source={require('../assets/EjemploExtends.jpg')} style={styles.imageiconPequeno}/>
-          </View>
-          </TouchableOpacity>
-
-          <Text style={styles.explicacion}>El encapsulamiento consiste en ocultar los detalles internos de una clase y exponer solo lo necesario mediante métodos públicos.</Text>
-          <Text style={styles.TextoEjemplo}>✅ Aquí un ejemplo visual de el encapsulamiento: </Text>
-          <TouchableOpacity onPress={() => abrirImagen(require('../assets/EjemploEncapsulamiento.png'))}>
-          <View>
-            <Image source={require('../assets/EjemploEncapsulamiento.png')} style={styles.imageiconGrande}/>
-          </View>
-          </TouchableOpacity>
-
-          <Text style={styles.explicacion}>El polimorfismo permite que un mismo método actúe de diferentes formas dependiendo del contexto o tipo de objeto.</Text>
-          <Text style={styles.TextoEjemplo}>✅ Aquí un ejemplo visual de como funciona el polimorfismo: </Text>
-          <TouchableOpacity onPress={() => abrirImagen(require('../assets/EjemploPolimorfismo.png'))}>
-          <View>
-            <Image source={require('../assets/EjemploPolimorfismo.png')} style={styles.imageiconPequeno}/>
-          </View>
-          </TouchableOpacity>
-
-          <Text style={styles.explicacion}>En JavaScript se usa <Text style={styles.bold}>class</Text> para definir clases.</Text>
-          <Text style={styles.TextoEjemplo}> ✅ Ejemplo: class Coche</Text>
-          <TouchableOpacity onPress={() => abrirImagen(require('../assets/EjemploClass.png'))}>
-          <View>
-            <Image source={require('../assets/EjemploClass.png')} style={styles.imageiconPequeno}/>
-          </View>
-          </TouchableOpacity>
-
-          <Text style={styles.explicacion}>Un constructor es un método especial que se ejecuta automáticamente al crear un objeto, y sirve para inicializar sus propiedades.</Text>
-          <Text style={styles.TextoEjemplo}>✅ Aquí un ejemplo visual de lo que es un <Text style={styles.bold}>"constructor"</Text></Text>
-          <TouchableOpacity onPress={() => abrirImagen(require('../assets/EjemploConstructor.jpg'))}>
-          <View>
-            <Image source={require('../assets/EjemploConstructor.jpg')} style={styles.imageiconPequeno}/>
-          </View>
-          </TouchableOpacity>
-
-          <View>
-            
-            <Text style={styles.textoNegrita}>¿LISTO PARA LA PRACTICA?</Text>
-            <Text style={styles.textoNegrita}>👇👇👇</Text>
-          </View>
-
-          <TouchableOpacity style={styles.botonEmpezar} onPress={() => setEmpezar(true)}>
-            <Text style={styles.botonTexto}>Empezar</Text>
-          </TouchableOpacity>
-        </View>
-      ) : terminado ? (
-        <View style={styles.resultadoContainer}>
-          <Text style={styles.resultado}>Puntaje final: {puntos} / {preguntasPOO.length}</Text>
-          <TouchableOpacity style={styles.boton} onPress={reiniciar}>
-            <Ionicons name="refresh" size={24} color="#fff" />
-            <Text style={styles.botonTexto}>Reintentar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.boton, { backgroundColor: '#4caf50' }]} onPress={() => navigation.navigate('Progreso')}>
-            <Ionicons name="bar-chart" size={24} color="#fff" />
-            <Text style={styles.botonTexto}>Ver Progreso</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <View style={styles.preguntaContainer}>
-          <Text style={styles.pregunta}>{preguntaActual.pregunta}</Text>
-          {preguntaActual.opciones.map((op, idx) => (
-            <TouchableOpacity
-              key={idx}
-              style={[
-                styles.opcion,
-                respuestaSeleccionada === op && (op === preguntaActual.respuestaCorrecta
-                  ? styles.correcta
-                  : styles.incorrecta),
-              ]}
-              onPress={() => verificarRespuesta(op)}
-              disabled={respuestaSeleccionada !== null}
-            >
-              <Text style={styles.opcionTexto}>{op}</Text>
+            <TouchableOpacity style={styles.botonEmpezar} onPress={() => setEmpezar(true)}>
+              <Text style={styles.botonTexto}>Empezar</Text>
             </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </ScrollView>
+          </View>
+        )}
+
+        {empezar && !terminado && (
+          <View style={styles.preguntaContainer}>
+            {preguntaActual.id === 1 && (
+              <TouchableOpacity style={styles.materialBoton} onPress={() => navigation.navigate('apoyoPOO')}>
+                <Text style={styles.materialTexto}>📚 Consultar Material de Apoyo</Text>
+              </TouchableOpacity>
+            )}
+            {preguntaActual.id === 2 && (
+              <TouchableOpacity style={styles.materialBoton} onPress={() => navigation.navigate('apoyoPregunta2')}>
+                <Text style={styles.materialTexto}>📘 Consultar Material de Apoyo</Text>
+              </TouchableOpacity>
+            )}
+            {preguntaActual.id === 3 && (
+              <TouchableOpacity style={styles.materialBoton} onPress={() => navigation.navigate('apoyoPregunta3')}>
+                <Text style={styles.materialTexto}>📖 Consultar Material de Apoyo</Text>
+              </TouchableOpacity>
+            )}
+            {preguntaActual.id === 4 && (
+              <TouchableOpacity style={styles.materialBoton} onPress={() => navigation.navigate('apoyoPregunta4')}>
+                <Text style={styles.materialTexto}>📖 Consultar Material de Apoyo</Text>
+              </TouchableOpacity>
+            )}
+            {preguntaActual.id === 5 && (
+              <TouchableOpacity style={styles.materialBoton} onPress={() => navigation.navigate('apoyoPregunta5')}>
+                <Text style={styles.materialTexto}>📖 Consultar Material de Apoyo</Text>
+              </TouchableOpacity>
+            )}
+            {preguntaActual.id === 6 && (
+              <TouchableOpacity style={styles.materialBoton} onPress={() => navigation.navigate('apoyoPregunta6')}>
+                <Text style={styles.materialTexto}>📖 Consultar Material de Apoyo</Text>
+              </TouchableOpacity>
+            )}
+             {preguntaActual.id === 7 && (
+              <TouchableOpacity style={styles.materialBoton} onPress={() => navigation.navigate('apoyoPregunta7')}>
+                <Text style={styles.materialTexto}>📖 Consultar Material de Apoyo</Text>
+              </TouchableOpacity>
+            )}
+            {preguntaActual.id === 8 && (
+              <TouchableOpacity style={styles.materialBoton} onPress={() => navigation.navigate('apoyoPregunta8')}>
+                <Text style={styles.materialTexto}>📖 Consultar Material de Apoyo</Text>
+              </TouchableOpacity>
+            )}
+            {preguntaActual.id === 9 && (
+              <TouchableOpacity style={styles.materialBoton} onPress={() => navigation.navigate('apoyoPregunta9')}>
+                <Text style={styles.materialTexto}>📖 Consultar Material de Apoyo</Text>
+              </TouchableOpacity>
+            )}
+            {preguntaActual.id === 10 && (
+              <TouchableOpacity style={styles.materialBoton} onPress={() => navigation.navigate('apoyoPregunta10')}>
+                <Text style={styles.materialTexto}>📖 Consultar Material de Apoyo</Text>
+              </TouchableOpacity>
+            )}
+            
+
+
+
+
+            <Text style={styles.pregunta}>{preguntaActual.pregunta}</Text>
+            {preguntaActual.opciones.map((op, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={[styles.opcion, respuestaSeleccionada === op && (op === preguntaActual.respuestaCorrecta ? styles.correcta : styles.incorrecta)]}
+                onPress={() => verificarRespuesta(op)}
+                disabled={respuestaSeleccionada !== null}
+              >
+                <Text style={styles.opcionTexto}>{op}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {terminado && (
+          <View style={styles.resultadoContainer}>
+            <Text style={styles.resultado}>Puntaje final: {puntos} / {preguntas.length}</Text>
+            <TouchableOpacity style={styles.boton} onPress={reiniciar}>
+              <Ionicons name="refresh" size={24} color="#fff" />
+              <Text style={styles.botonTexto}>Reintentar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.boton, { backgroundColor: '#4caf50' }]} onPress={() => navigation.navigate('Progreso')}>
+              <Ionicons name="bar-chart" size={24} color="#fff" />
+              <Text style={styles.botonTexto}>Ver Progreso</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <ImageViewing
+          images={imagenSeleccionada || []}
+          imageIndex={0}
+          visible={visible}
+          onRequestClose={() => setVisible(false)}
+        />
+      </ScrollView>
     </LinearGradient>
   );
 }
@@ -285,28 +284,12 @@ const styles = StyleSheet.create({
     padding: 20,
     justifyContent: 'center',
   },
-  scrollContainer: {
-    flexGrow: 1,
-  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 25,
     textAlign: 'center',
     color: '#4a148c',
-  },
-  explicacion: {
-    fontSize: 20,
-    marginBottom: 10,
-    color: '#333',
-  },
-  subtitulo: {
-    fontStyle: 'italic',
-    marginBottom: 15,
-    color: '#666'
-  },
-  bold: {
-    fontWeight: 'bold'
   },
   preguntaContainer: {
     marginVertical: 20,
@@ -360,49 +343,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
   },
-  imageicon: {
-    width: 275,
-    height: 275,
-    resizeMode: 'contain',
-    borderRadius: 50,
-    marginTop: -50,
-    marginBottom: 1,
-    borderColor: 'white',
-  },
-  TextoEjemplo: {
-    fontWeight: 'bold',     // Negrita
-    fontSize: 18,           // Tamaño de fuente
-    color: '#333',
-  },
-  imageiconGrande: {
-    width: 300,
-    height: 300,
-    resizeMode: 'contain',
-    borderRadius: 50,
-    marginTop: -80,
-    marginBottom: -75,
-    borderColor: 'white',
-  },
-  imageiconPequeno: {
-    width: 250,
-    height: 250,
-    resizeMode: 'contain',
-    borderRadius: 20,
-    marginTop: 1,
-    marginBottom: 20,
-    borderColor: 'white',
-    borderRadius: 30,
-  },
-  textoNegrita: {
-    fontWeight: 'bold',     // Negrita
-    fontSize: 20,           // Tamaño de fuente
-    color: '#333',
-    textAlign: 'center',
-  },
-
   gradient: {
-  flex: 1,
+    flex: 1,
   },
-
-
+  materialBoton: {
+    backgroundColor: '#9575cd',
+    padding: 10,
+    borderRadius: 8,
+    marginBottom: 15,
+    alignItems: 'center',
+  },
+  materialTexto: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
 });

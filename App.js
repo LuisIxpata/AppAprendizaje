@@ -15,6 +15,16 @@ import Notificaciones from './screens/Notificaciones';
 import MisArchivos from './screens/MisArchivos';
 import ModuloPOO from './screens/ModuloPOO';
 import Progreso from './screens/Progreso';
+import ApoyoPOO from './material_apoyo/apoyoPOO';
+import ApoyoPregunta2 from './material_apoyo/apoyoPregunta2';
+import ApoyoPregunta3 from './material_apoyo/apoyoPregunta3';
+import ApoyoPregunta4 from './material_apoyo/apoyoPregunta4';
+import ApoyoPregunta5 from './material_apoyo/apoyoPregunta5';
+import ApoyoPregunta6 from './material_apoyo/apoyoPregunta6';
+import ApoyoPregunta7 from './material_apoyo/apoyoPregunta7';
+import ApoyoPregunta8 from './material_apoyo/apoyoPregunta8';
+import ApoyoPregunta9 from './material_apoyo/apoyoPregunta9';
+import ApoyoPregunta10 from './material_apoyo/apoyoPregunta10';
 // Aqui mando a traer la imagen que voy a usar.
 const icon = require('./assets/adaptive-icon.png');
 const umg = require('./assets/Umg.png');
@@ -128,6 +138,99 @@ function MyStack() {
     <Stack.Screen name='Progreso' component={Progreso}
       options={{
       tittle: "Progreso",
+      headerTintColor: "white",
+      headerTitleAlign: "center",
+      headerLeft: () => null,
+      headerStyle: { backgroundColor: "black" },
+      }}
+
+      />
+      <Stack.Screen name='apoyoPOO' component={ApoyoPOO}
+      options={{
+      tittle: "ApoyoPOO",
+      headerTintColor: "white",
+      headerTitleAlign: "center",
+      headerLeft: () => null,
+      headerStyle: { backgroundColor: "black" },
+      }}
+      />
+
+      <Stack.Screen name='apoyoPregunta2' component={ApoyoPregunta2}
+      options={{
+      tittle: "apoyoPregunta2",
+      headerTintColor: "white",
+      headerTitleAlign: "center",
+      headerLeft: () => null,
+      headerStyle: { backgroundColor: "black" },
+      }}
+      />
+
+      <Stack.Screen name='apoyoPregunta3' component={ApoyoPregunta3}
+      options={{
+      tittle: "apoyoPregunta3",
+      headerTintColor: "white",
+      headerTitleAlign: "center",
+      headerLeft: () => null,
+      headerStyle: { backgroundColor: "black" },
+      }}
+      />
+      <Stack.Screen name='apoyoPregunta4' component={ApoyoPregunta4}
+      options={{
+      tittle: "apoyoPregunta4",
+      headerTintColor: "white",
+      headerTitleAlign: "center",
+      headerLeft: () => null,
+      headerStyle: { backgroundColor: "black" },
+      }}
+      />
+      <Stack.Screen name='apoyoPregunta5' component={ApoyoPregunta5}
+      options={{
+      tittle: "apoyoPregunta5",
+      headerTintColor: "white",
+      headerTitleAlign: "center",
+      headerLeft: () => null,
+      headerStyle: { backgroundColor: "black" },
+      }}
+      />
+      <Stack.Screen name='apoyoPregunta6' component={ApoyoPregunta6}
+      options={{
+      tittle: "apoyoPregunta6",
+      headerTintColor: "white",
+      headerTitleAlign: "center",
+      headerLeft: () => null,
+      headerStyle: { backgroundColor: "black" },
+      }}
+      />
+      <Stack.Screen name='apoyoPregunta7' component={ApoyoPregunta7}
+      options={{
+      tittle: "apoyoPregunta7",
+      headerTintColor: "white",
+      headerTitleAlign: "center",
+      headerLeft: () => null,
+      headerStyle: { backgroundColor: "black" },
+      }}
+      />
+      <Stack.Screen name='apoyoPregunta8' component={ApoyoPregunta8}
+      options={{
+      tittle: "apoyoPregunta8",
+      headerTintColor: "white",
+      headerTitleAlign: "center",
+      headerLeft: () => null,
+      headerStyle: { backgroundColor: "black" },
+      }}
+      />
+      <Stack.Screen name='apoyoPregunta9' component={ApoyoPregunta9}
+      options={{
+      tittle: "apoyoPregunta9",
+      headerTintColor: "white",
+      headerTitleAlign: "center",
+      headerLeft: () => null,
+      headerStyle: { backgroundColor: "black" },
+      }}
+      />
+      <Stack.Screen name='apoyoPregunta10' component={ApoyoPregunta10}
+      options={{
+      tittle: "apoyoPregunta10",
       headerTintColor: "white",
       headerTitleAlign: "center",
       headerLeft: () => null,

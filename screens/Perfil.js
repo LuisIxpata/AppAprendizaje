@@ -1,98 +1,135 @@
+// screens/Perfil.js
 import React, { useEffect, useState, useLayoutEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, BackHandler } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  BackHandler,
+  ActivityIndicator,
+  SafeAreaView,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { getAuth } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import appFirebase from '../credenciales';
-
-const auth = getAuth(appFirebase);
-const db = getFirestore(appFirebase);
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../config';
 
 export default function Perfil() {
-  const navigation = useNavigation();
+  const navigation          = useNavigation();
   const [usuario, setUsuario] = useState(null);
-  const [menuVisible, setMenuVisible] = useState(false);
+  const [cargando, setCargando] = useState(true);
 
-
+  /* Bloquea el botón físico BACK */
   useFocusEffect(
-      useCallback(() => {
-        const onBackPress = () => true;
-        BackHandler.addEventListener('hardwareBackPress', onBackPress);
-        return () => BackHandler.removeEventListener('hardwareBackPress', onBackPress);
-      }, [])
-    );  
+    useCallback(() => {
+      const onBackPress = () => true;
+      const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+      return () => sub.remove();
+    }, [])
+  );
 
+  /* Oculta flecha de retroceso del header */
   useLayoutEffect(() => {
     navigation.setOptions({ headerLeft: () => null });
   }, [navigation]);
 
+  /* ---------- Cargar datos de usuario ---------- */
   useEffect(() => {
-    const fetchUserData = async () => {
-      const user = auth.currentUser;
-      if (user) {
-        const docRef = doc(db, 'usuarios', user.uid);
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setUsuario(docSnap.data());
+    (async () => {
+      try {
+        const token  = await AsyncStorage.getItem('token');
+        const userId = await AsyncStorage.getItem('userId');
+        if (!token || !userId) return;
+
+        const res = await fetch(`${API_BASE_URL}/obtener_usuarios/${userId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) {
+          console.warn('Error al obtener datos del usuario');
+          return;
         }
+
+        const raw = await res.json();
+
+        /* ① Normaliza: puede venir como array o envoltorio */
+        const u =
+          Array.isArray(raw)   ? raw[0] :
+          raw?.usuario         ? raw.usuario :
+          raw;
+
+        /* ② Mapea nombres que tu UI espera */
+        const adaptado = {
+          ...u,
+          foto   : u.foto      ?? u.photo_url,   
+          correo : u.correo    ?? u.email,
+          telefono : u.telefono ?? u.telefono,
+          carrera : u.carrera ?? u.carrera,      
+        };
+
+        setUsuario(adaptado);
+      } catch (err) {
+        console.error('Error al cargar usuario:', err);
+      } finally {
+        setCargando(false);
       }
-    };
-    fetchUserData();
+    })();
   }, []);
 
-  const handleEditProfile = () => {
-    toggleMenu();
-    navigation.navigate('EditarPerfil');
-  };
+  const handleEditProfile = () => navigation.navigate('EditarPerfil');
 
-  const toggleMenu = () => {
-    setMenuVisible(!menuVisible);
-  };
+  /* Utilidad para evitar “undefined” en pantalla */
+  const show = (value) => (value ?? '―');
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.title}>Perfil del Usuario</Text>
 
-      <View style={styles.card}>
-        {usuario?.photoURL && (
-          <Image source={{ uri: usuario.photoURL }} style={styles.profileImage} />
-        )}
-        <Text style={styles.name}>{usuario?.nombre} {usuario?.apellido}</Text>
-        <Text style={styles.info}>Carnet: {usuario?.carnet}</Text>
-        <Text style={styles.info}>Correo: {usuario?.correo}</Text>
-        <Text style={styles.info}>Teléfono: {usuario?.telefono}</Text>
-        <Text style={styles.info}>Carrera: {usuario?.carrera}</Text>
-        <Text style={styles.info}>Rol: {usuario?.rol}</Text>
-      </View>
+      {cargando ? (
+        <ActivityIndicator size="large" color="#6a1b9a" style={{ flex: 1 }} />
+      ) : (
+        <View style={styles.card}>
+          {usuario?.foto && (
+            <Image source={{ uri: usuario.foto }} style={styles.profileImage} />
+          )}
+          <Text style={styles.name}>{show(usuario?.nombre)} {show(usuario?.apellido)}</Text>
+          <Text style={styles.info}>Carnet:   {show(usuario?.carnet)}</Text>
+          <Text style={styles.info}>Correo:   {show(usuario?.correo)}</Text>
+          <Text style={styles.info}>Teléfono: {show(usuario?.telefono)}</Text>
+          <Text style={styles.info}>Carrera:  {show(usuario?.carrera)}</Text>
+          <Text style={styles.info}>Rol:      {show(usuario?.rol)}</Text>
+        </View>
+      )}
 
       <TouchableOpacity onPress={handleEditProfile} style={styles.menuButton}>
-        <Text style={styles.menuButtonText}> Editar perfil  ✏️</Text>
+        <Text style={styles.menuButtonText}>Editar perfil ✏️</Text>
       </TouchableOpacity>
 
+      {/* -------- Footer -------- */}
       <View style={styles.footerMenu}>
-        <TouchableOpacity onPress={() => navigation.navigate('HomeEstudiante')} style={styles.footerItem}>
-          <Ionicons name="home" size={24} color="gray" />
-          <Text style={styles.footerText}>Inicio</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('MisArchivos')} style={styles.footerItem}>
-          <Ionicons name="folder" size={24} color="#666" />
-          <Text style={styles.footerText}>Mis Archivos</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate('Notificaciones')} style={styles.footerItem}>
-          <Ionicons name="notifications" size={24} color="#666" />
-          <Text style={styles.footerText}>Notificaciones</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.footerItem}>
-          <Ionicons name="person" size={24} color="#800080" />
-          <Text style={styles.footerText}>Perfil</Text>
-        </TouchableOpacity>
-
+        <FooterItem icon="home"          label="Inicio"         onPress={() => navigation.navigate('HomeEstudiante')} />
+        <FooterItem icon="folder"        label="Mis Archivos"   onPress={() => navigation.navigate('MisArchivos')} />
+        <FooterItem icon="notifications" label="Notificaciones" onPress={() => navigation.navigate('Notificaciones')} />
+        <FooterItem icon="person"        label="Perfil"         active />
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
+/* ---------- Footer helper ---------- */
+const FooterItem = ({ icon, label, onPress, active }) => (
+  <TouchableOpacity style={styles.footerItem} onPress={onPress}>
+    <Ionicons
+      name={icon}
+      size={26}
+      color={active ? '#800080' : '#666'}
+    />
+    <Text style={styles.footerText}>{label}</Text>
+  </TouchableOpacity>
+);
+
+/* ---------- Estilos ---------- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -128,20 +165,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#555',
     marginBottom: 4,
-
-  },
-  backButton: {
-    marginTop: 20,
-    backgroundColor: '#6a1b9a',
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    alignSelf: 'center',
-  },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   menuButton: {
     backgroundColor: '#2196f3',
@@ -149,7 +172,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 6,
     marginTop: 10,
-    alignItems: 'center'
+    alignItems: 'center',
   },
   menuButtonText: {
     color: '#fff',
@@ -164,16 +187,8 @@ const styles = StyleSheet.create({
     borderColor: '#ddd',
     backgroundColor: '#fff',
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 0, left: 0, right: 0,
   },
-  footerItem: {
-    alignItems: 'center',
-  },
-  footerText: {
-    fontSize: 12,
-    marginTop: 4,
-    
-  },
+  footerItem: { alignItems: 'center' },
+  footerText: { fontSize: 12, marginTop: 2 },
 });

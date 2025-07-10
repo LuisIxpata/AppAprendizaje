@@ -1,22 +1,75 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  ActivityIndicator,
+} from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-
-const notificacionesEjemplo = [
-  { id: '1', titulo: 'Nueva clase disponible', descripcion: 'Revisa el nuevo contenido de Programación Avanzada.', leida: false },
-  { id: '2', titulo: 'Recordatorio de entrega', descripcion: 'Entrega tu tarea de Historia antes del viernes.', leida: false },
-  { id: '3', titulo: 'Mensaje del docente', descripcion: 'Revisa tus comentarios en la actividad de Matemática.', leida: true },
-];
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { API_BASE_URL } from '../config';
 
 export default function Notificaciones() {
-  const [notificaciones, setNotificaciones] = useState(notificacionesEjemplo);
+  const [notificaciones, setNotificaciones] = useState([]);
+  const [cargando, setCargando] = useState(true);
   const navigation = useNavigation();
-  const marcarComoLeida = (id) => {
-    const nuevas = notificaciones.map((n) =>
-      n.id === id ? { ...n, leida: true } : n
-    );
-    setNotificaciones(nuevas);
+
+  // Se llama cuando la pantalla entra en foco
+  useFocusEffect(
+    useCallback(() => {
+      cargarNotificaciones();
+    }, [])
+  );
+
+  // Cargar notificaciones desde backend
+  const cargarNotificaciones = async () => {
+    setCargando(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const userId = await AsyncStorage.getItem('userId');
+      if (!token || !userId) return;
+
+      const response = await fetch(`${API_BASE_URL}/notificaciones/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setNotificaciones(data);
+      } else {
+        console.warn('Error al cargar notificaciones');
+      }
+    } catch (err) {
+      console.error('Error:', err);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const marcarComoLeida = async (id) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      await fetch(`${API_BASE_URL}/notificaciones/${id}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ leida: true }),
+      });
+
+      const actualizadas = notificaciones.map((n) =>
+        n.id === id ? { ...n, leida: true } : n
+      );
+      setNotificaciones(actualizadas);
+    } catch (error) {
+      console.error('Error al marcar como leída:', error);
+    }
   };
 
   const renderItem = ({ item }) => (
@@ -24,7 +77,12 @@ export default function Notificaciones() {
       style={[styles.notification, item.leida && styles.notificationRead]}
       onPress={() => marcarComoLeida(item.id)}
     >
-      <Ionicons name={item.leida ? 'notifications-outline' : 'notifications'} size={24} color={item.leida ? '#999' : '#6a1b9a'} style={styles.icon} />
+      <Ionicons
+        name={item.leida ? 'notifications-outline' : 'notifications'}
+        size={24}
+        color={item.leida ? '#999' : '#6a1b9a'}
+        style={styles.icon}
+      />
       <View style={styles.textContainer}>
         <Text style={styles.titulo}>{item.titulo}</Text>
         <Text style={styles.descripcion}>{item.descripcion}</Text>
@@ -35,39 +93,51 @@ export default function Notificaciones() {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Notificaciones</Text>
-      <FlatList
-        data={notificaciones}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={{ paddingBottom: 20 }}
-      />
 
+      {cargando ? (
+        <ActivityIndicator size="large" color="#6a1b9a" />
+      ) : notificaciones.length > 0 ? (
+        <FlatList
+          data={notificaciones}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingBottom: 20 }}
+        />
+      ) : (
+        <Text style={{ textAlign: 'center', marginTop: 30 }}>No hay notificaciones aún.</Text>
+      )}
+
+      {/* Footer menu */}
       <View style={styles.footerMenu}>
-              <TouchableOpacity onPress={() => navigation.navigate('HomeEstudiante')} style={styles.footerItem}>
-                <Ionicons name="home" size={24} color="gray" />
-                <Text style={styles.footerText}>Inicio</Text>
-              </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('HomeEstudiante')}
+          style={styles.footerItem}
+        >
+          <Ionicons name="home" size={24} color="gray" />
+          <Text style={styles.footerText}>Inicio</Text>
+        </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => navigation.navigate('MisArchivos')} style={styles.footerItem}>
-                <Ionicons name="folder" size={24} color="#666" />
-                <Text style={styles.footerText}>Mis Archivos</Text>
-              </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => navigation.navigate('MisArchivos')}
+          style={styles.footerItem}
+        >
+          <Ionicons name="folder" size={24} color="#666" />
+          <Text style={styles.footerText}>Mis Archivos</Text>
+        </TouchableOpacity>
 
-              <TouchableOpacity style={styles.footerItem}>
-                <Ionicons name="notifications" size={24} color="#800080" />
-                <Text style={styles.footerText}>Notificaciones</Text>
-              </TouchableOpacity> 
+        <TouchableOpacity style={styles.footerItem}>
+          <Ionicons name="notifications" size={24} color="#800080" />
+          <Text style={styles.footerText}>Notificaciones</Text>
+        </TouchableOpacity>
 
-              <TouchableOpacity onPress={() => navigation.navigate('Perfil')} style={styles.footerItem}>
-                <Ionicons name="person" size={24} color="#666" />
-                <Text style={styles.footerText}>Perfil</Text>
-              </TouchableOpacity>
-      
-            </View>
-
-
-
-
+        <TouchableOpacity
+          onPress={() => navigation.navigate('Perfil')}
+          style={styles.footerItem}
+        >
+          <Ionicons name="person" size={24} color="#666" />
+          <Text style={styles.footerText}>Perfil</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -103,6 +173,15 @@ const styles = StyleSheet.create({
   textContainer: {
     flex: 1,
   },
+  titulo: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 4,
+  },
+  descripcion: {
+    fontSize: 14,
+    color: '#555',
+  },
   footerMenu: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -116,13 +195,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-  titulo: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 4,
+  footerItem: {
+    alignItems: 'center',
   },
-  descripcion: {
-    fontSize: 14,
-    color: '#555',
+  footerText: {
+    fontSize: 12,
+    marginTop: 4,
+    color: '#333',
   },
 });
